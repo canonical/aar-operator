@@ -1,0 +1,25 @@
+name: aar
+display-name: Anbox Application Registry
+summary: Anbox Application Registry
+website: https://anbox-cloud.io
+issues: https://bugs.launchpad.net/anbox-cloud
+maintainers:
+- Indore team <indore@lists.canonical.com>
+description: |
+  A central place to publish and retrieve applications from.
+tags:
+  - registry
+subordinate: false
+provides:
+  client:
+    interface: aar
+  publisher:
+    interface: aar
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
+resources:
+  aar-snap:
+    type: file
+    description: Snap for Anbox Application Registry
+    filename: aar.snap
