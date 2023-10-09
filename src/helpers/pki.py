@@ -1,16 +1,39 @@
-from datetime import datetime, timedelta
+"""Certificate related helper methods for anbox charms."""
+
 import ipaddress
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+
 def get_fingerprint(cert: str) -> str:
+    """Get a SHA-256 digest of a certificate.
+
+    Args:
+        cert: `str` path of the certificate.
+    """
     x509_cert = x509.load_pem_x509_certificate(cert.encode())
     return x509_cert.fingerprint(hashes.SHA256()).hex()
 
-def create_cert_files_if_needed(cert_path, key_path, hostname: str, public_ip: str, private_ip: str):
+
+def create_cert_files_if_needed(
+    cert_path: Path, key_path: Path, hostname: str, public_ip: str, private_ip: str
+):
+    """Create self-signed certificates at the given cert and key paths including the given hostname, public ip, and private ip as SAN Names.
+
+    Args:
+        cert_path: `Path` object to store the generated certificate at.
+        key_path: `Path` object to store the generated key at.
+        hostname: `str` the hostname to be included in CN and SAN fields of the
+            cert.
+        public_ip: `str` the public ip to be included in SAN field of the cert.
+        private_ip: `str` the private ip to be included in SAN field of the cert.
+    """
     if os.path.exists(cert_path) and os.path.exists(key_path):
         return
 
@@ -30,6 +53,7 @@ def create_cert_files_if_needed(cert_path, key_path, hostname: str, public_ip: s
     with open(os.open(key_path, os.O_CREAT | os.O_WRONLY, 0o600), "w") as f:
         f.write(str(key, "UTF-8"))
 
+
 def _generate_selfsigned_cert(hostname, public_ip, private_ip):
     if not hostname:
         raise Exception("A hostname is required")
@@ -40,9 +64,7 @@ def _generate_selfsigned_cert(hostname, public_ip, private_ip):
     if not private_ip:
         raise Exception("A private IP is required")
 
-    key = rsa.generate_private_key(
-        public_exponent=65537, key_size=4096, backend=default_backend()
-    )
+    key = rsa.generate_private_key(public_exponent=65537, key_size=4096, backend=default_backend())
 
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, hostname)])
     alt_names = x509.SubjectAlternativeName(
@@ -80,4 +102,3 @@ def _generate_selfsigned_cert(hostname, public_ip, private_ip):
     )
 
     return cert_pem, key_pem
-
