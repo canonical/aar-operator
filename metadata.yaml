@@ -4,7 +4,7 @@ summary: Anbox Application Registry
 website: https://anbox-cloud.io
 issues: https://bugs.launchpad.net/anbox-cloud
 maintainers:
-- Indore team <indore@lists.canonical.com>
+- Anbox Cloud Team <indore@lists.canonical.com>
 description: |
   A central place to publish and retrieve applications from.
 tags:
@@ -15,9 +15,9 @@ provides:
     interface: aar
   publisher:
     interface: aar
-  nrpe-external-master:
-    interface: nrpe-external-master
-    scope: container
+
+# FIXME: remove this resource requirement when the snap has been moved to the
+# snapstore and marked as unlisted
 resources:
   aar-snap:
     type: file

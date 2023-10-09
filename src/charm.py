@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Anbox - The Android in a Box runtime environment
-# Copyright 2019 Canonical Ltd.  All rights reserved.
+# Copyright 2023 Canonical Ltd.  All rights reserved.
 #
 
 """Charmed Machine Operator For Anbox Application Registry (AAR)."""
@@ -9,26 +9,22 @@
 import logging
 import os
 import shutil
-from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 
 import netifaces
 import ops
-from nrpe.client import NRPEClient  # noqa: E402
-from lib.charms.operator_libs_linux.v2 import snap
 from helpers import pki
 from jinja2 import Environment, FileSystemLoader
+from snap import AARSnap
 
 
 logger = logging.getLogger(__name__)
 
-SERVICE = "snap.aar.daemon.service"
 UA_STATUS_PATH = "/var/lib/ubuntu-advantage/status.json"
-SNAP_COMMON_PATH = Path("/var/snap/aar/common")
-AAR_CONFIG_PATH = SNAP_COMMON_PATH / "conf/main.yaml"
-SNAP_NAME = "aar"
+SNAP_BASE_PATH = AARSnap.get_path()
+AAR_CONFIG_PATH = SNAP_BASE_PATH  / "conf/main.yaml"
 
-AAR_CERT_BASE_PATH = SNAP_COMMON_PATH / "certs"
+AAR_CERT_BASE_PATH =  SNAP_BASE_PATH / "certs"
 CLIENT_CERT_PATH = AAR_CERT_BASE_PATH / "clients"
 PUBLISHERS_CERT_PATH = AAR_CERT_BASE_PATH / "publishers"
 AAR_SERVER_CERT_PATH = AAR_CERT_BASE_PATH / "server.crt"
@@ -40,6 +36,7 @@ class AARCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self._snap = AARSnap(self)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(self.on.client_relation_joined, self._on_aar_joined)
@@ -69,24 +66,6 @@ class AARCharm(ops.CharmBase):
         """Private address of the unit."""
         return self.model.get_binding("juju-info").network.bind_address.exploded
 
-    def _install_snap(self):
-        try:
-            res = self.model.resources.fetch("aar-snap")
-        except ops.ModelError:
-            res = None
-
-        # FIXME: Install the aar snap from a resource until we make the
-        # snaps in the snap store unlisted
-        if res is not None and res.stat().st_size:
-            snap.install_local(res, classic=False, dangerous=True)
-        else:
-            self.unit.status = ops.BlockedStatus("cannot install aar: snap resource not found")
-            return
-
-        aar_snap = snap.SnapCache()["aar"]
-        aar_snap.connect(plug="home", slot=":home")
-        aar_snap.connect(plug="network", slot=":network")
-
     def _setup_certs(self):
         os.makedirs(CLIENT_CERT_PATH, 0o700, exist_ok=True)
         os.makedirs(PUBLISHERS_CERT_PATH, 0o700, exist_ok=True)
@@ -100,9 +79,9 @@ class AARCharm(ops.CharmBase):
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         self.unit.status = ops.MaintenanceStatus("Configuring AAR")
-        if not self._is_snap_installed(SNAP_NAME):
+        if not self._snap.installed:
             self.unit.status = ops.MaintenanceStatus("Installing AAR")
-            self._install_snap()
+            self._snap.install()
             self._setup_certs()
 
         port = ops.Port(protocol="tcp", port=int(self.config["port"]))
@@ -111,12 +90,8 @@ class AARCharm(ops.CharmBase):
 
         self._on_nrpe_available(event)
 
-        aar_snap = snap.SnapCache()['aar']
-        aar_snap.restart()
-
-        version = self._get_snap_version(SNAP_NAME)
-        self.unit.set_workload_version(version)
-
+        self.unit.set_workload_version(self._snap.version)
+        self._snap.restart()
         self.unit.status = ops.ActiveStatus()
 
     def _set_aar_config(self, port: ops.Port, listen_address: str):
@@ -131,7 +106,7 @@ class AARCharm(ops.CharmBase):
         AAR_CONFIG_PATH.write_text(rendered_content)
 
     def _on_stop(self, _: ops.StopEvent):
-        snap.remove('aar')
+        self._snap.remove()
 
     def _on_aar_joined(self, event: ops.RelationJoinedEvent):
         with open(AAR_SERVER_CERT_PATH, "r") as f:
@@ -153,6 +128,8 @@ class AARCharm(ops.CharmBase):
 
     def _on_aar_changed(self, event: ops.RelationChangedEvent):
         self.unit.status = ops.MaintenanceStatus("Confguring new AAR Client")
+        # remove certificates of previous clients to avoid conflicts for same
+        # certificates
         self._remove_all_certificates()
         ams_clients = []
         for unit in event.relation.units:
@@ -181,8 +158,7 @@ class AARCharm(ops.CharmBase):
                 self.unit.status = ops.BlockedStatus('Failed to register client certificate')
                 return
 
-        aar_snap = snap.SnapCache()["aar"]
-        aar_snap.restart()
+        self._snap.restart()
         self.unit.status = ops.ActiveStatus()
 
     def _on_nrpe_available(self, _):
@@ -220,14 +196,6 @@ class AARCharm(ops.CharmBase):
             cmd.append("--publisher")
         check_output(cmd, stderr=STDOUT, input=client_certificate.encode("utf-8"))
 
-    def _is_snap_installed(self, snap_name) -> bool:
-        snap_client = snap.SnapClient()
-        snaps = snap_client.get_installed_snaps()
-        for installed_snap in snaps:
-            if installed_snap["name"] == snap_name:
-                return True
-        return False
-
     def _get_ip_for_interface(self, interface):
         """Return the ip address associated to the given interface."""
         addresses = netifaces.ifaddresses(interface)
@@ -235,14 +203,6 @@ class AARCharm(ops.CharmBase):
             raise Exception("No IP associated to requested device")
 
         return addresses[netifaces.AF_INET][0]["addr"]
-
-    def _get_snap_version(self, snap_name: str) -> str:
-        snap_client = snap.SnapClient()
-        snaps = snap_client.get_installed_snaps()
-        for installed_snap in snaps:
-            if installed_snap["name"] == snap_name:
-                return installed_snap["version"]
-        return ""
 
 if __name__ == "__main__":
     ops.main(AARCharm)
