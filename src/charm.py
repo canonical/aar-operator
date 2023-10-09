@@ -44,8 +44,6 @@ class AARCharm(ops.CharmBase):
 
         self.framework.observe(self.on.client_relation_changed, self._on_aar_changed)
         self.framework.observe(self.on.publisher_relation_changed, self._on_aar_changed)
-        self.nrpe_client = NRPEClient(self, "nrpe-external-master")
-        self.framework.observe(self.nrpe_client.on.nrpe_available, self._on_nrpe_available)
 
     @property
     def public_ip(self) -> str:
@@ -77,7 +75,7 @@ class AARCharm(ops.CharmBase):
             private_ip=self.private_ip
         )
 
-    def _on_config_changed(self, event: ops.ConfigChangedEvent):
+    def _on_config_changed(self, _: ops.ConfigChangedEvent):
         self.unit.status = ops.MaintenanceStatus("Configuring AAR")
         if not self._snap.installed:
             self.unit.status = ops.MaintenanceStatus("Installing AAR")
@@ -87,8 +85,6 @@ class AARCharm(ops.CharmBase):
         port = ops.Port(protocol="tcp", port=int(self.config["port"]))
         self._set_aar_config(port, self.private_ip)
         self.unit.set_ports(port)
-
-        self._on_nrpe_available(event)
 
         self.unit.set_workload_version(self._snap.version)
         self._snap.restart()
@@ -160,20 +156,6 @@ class AARCharm(ops.CharmBase):
 
         self._snap.restart()
         self.unit.status = ops.ActiveStatus()
-
-    def _on_nrpe_available(self, _):
-        if self.nrpe_client.is_available:
-            check_name = "check_{}".format(self.model.unit.name.replace("/", "_"))
-            self.nrpe_client.add_check(
-                command=[
-                    '/usr/lib/nagios/plugins/check_http',
-                    '--ssl', '--hostname', "{}:{}".format(self.private_ip, self.config["port"]),
-                    '--url', '/1.0/status', '--expect', '200',
-                    '--warning', '5', '--critical', '10'
-                ],
-                name=check_name,
-            )
-            self.nrpe_client.commit()
 
     def _remove_all_certificates(self):
         """Remove all old certificates held by AAR.
