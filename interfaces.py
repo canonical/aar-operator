@@ -74,7 +74,6 @@ class AAREndpointProvider(ops.Object):
         for client in ams_clients:
             try:
                 self._register_aar_client(client["certificate"], event.relation.name)
-                logger.info(f"new client registered")
             except subprocess.CalledProcessError as ex:
                 logger.error(f"failed to add client to aar: {ex.output}")
                 self._charm.unit.status = ops.BlockedStatus('Failed to register client certificate')
@@ -100,5 +99,12 @@ class AAREndpointProvider(ops.Object):
         cmd = ["/snap/bin/aar", "trust", "add"]
         if mode == "publisher":
             cmd.append("--publisher")
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT, input=client_certificate.encode("utf-8"))
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT, input=client_certificate.encode("utf-8"))
+            logger.info("new client registered")
+        except subprocess.CalledProcessError as ex:
+            if 'certificate already exists' in ex.output:
+                logger.warning("client already registered")
+                return
+            raise
 
