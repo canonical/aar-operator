@@ -7,8 +7,8 @@ import netifaces
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 import ops
-from helpers import pki
 from lib.charms.operator_libs_linux.v2 import snap
+from lib.charms.tls_certificates_interface.v2.tls_certificates import generate_ca, generate_certificate, generate_csr, generate_private_key
 
 SNAP_NAME = "aar"
 SNAP_COMMON_PATH = Path("/var/snap/aar/common")
@@ -52,21 +52,28 @@ class AAR:
         aar_snap.connect(plug="home", slot=":home")
         aar_snap.connect(plug="network", slot=":network")
 
-    @property
-    def version(self) -> str:
+    # TODO: remove this function to get snap from SnapCache()['aar'] after the
+    # snap is made publicly available in the snap store
+    def _get_snap(self) -> dict | None:
         snaps = self._sc._snap_client.get_installed_snaps()
         for installed_snap in snaps:
             if installed_snap["name"] == SNAP_NAME:
-                return installed_snap["version"]
-        return ""
+                return installed_snap
+        return None
+
+    @property
+    def version(self) -> str:
+        _snap = self._get_snap()
+        if not _snap:
+            raise snap.SnapNotFoundError(SNAP_NAME)
+        return _snap["version"]
 
     @property
     def installed(self) -> bool:
-        snaps = self._sc._snap_client.get_installed_snaps()
-        for installed_snap in snaps:
-            if installed_snap["name"] == SNAP_NAME:
-                return True
-        return False
+        _snap = self._get_snap()
+        if not _snap:
+            return False
+        return True
 
     @staticmethod
     def get_ip_for_interface(interface):
@@ -94,13 +101,43 @@ class AAR:
         self._setup_certs(ingress_address, ingress_address, listen_address)
 
     def _setup_certs(self, hostname: str, public_ip: str, private_ip: str):
+
+        cert_base_path = os.path.dirname(AAR_CERT_BASE_PATH)
+        if not os.path.exists(cert_base_path):
+            os.makedirs(cert_base_path, mode=0o0700)
+
         os.makedirs(CLIENTS_CERT_PATH, 0o700, exist_ok=True)
         os.makedirs(PUBLISHERS_CERT_PATH, 0o700, exist_ok=True)
-        pki.create_cert_files_if_needed(
-            cert_path=AAR_SERVER_CERT_PATH,
-            key_path=AAR_SERVER_KEY_PATH,
-            hostname=hostname,
-            public_ip=public_ip,
-            private_ip=private_ip,
-        )
 
+        if os.path.exists(AAR_SERVER_CERT_PATH) and os.path.exists(AAR_SERVER_KEY_PATH):
+            return
+
+        cert, key = self._generate_selfsigned_cert(hostname, public_ip, private_ip)
+
+        with open(os.open(AAR_SERVER_CERT_PATH, os.O_CREAT | os.O_WRONLY, 0o600), "w") as f:
+            f.write(str(cert, "UTF-8"))
+
+        with open(os.open(AAR_SERVER_KEY_PATH, os.O_CREAT | os.O_WRONLY, 0o600), "w") as f:
+            f.write(str(key, "UTF-8"))
+
+    def _generate_selfsigned_cert(self, hostname, public_ip, private_ip) -> tuple[bytes, bytes]:
+        if not hostname:
+            raise Exception("A hostname is required")
+
+        if not public_ip:
+            raise Exception("A public IP is required")
+
+        if not private_ip:
+            raise Exception("A private IP is required")
+
+        ca_key = generate_private_key(key_size=4096)
+        ca_cert = generate_ca(ca_key, hostname)
+
+        key = generate_private_key(key_size=4096)
+        csr = generate_csr(
+                private_key=key,
+                subject=hostname,
+                sans_dns=[public_ip, private_ip, hostname],
+                sans_ip=[public_ip,private_ip] )
+        cert = generate_certificate(csr=csr, ca=ca_cert, ca_key=ca_key)
+        return cert, key

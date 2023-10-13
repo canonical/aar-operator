@@ -9,8 +9,8 @@ import logging
 
 import ops
 
-from interfaces import AAREndpointProvider, ClientRegisteredEvent
 from aar import AAR
+from interfaces import AAREndpointProvider, ClientRegisteredEvent
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class AARCharm(ops.CharmBase):
         self._snap.remove()
 
     def _on_aar_client_registered(self, _: ClientRegisteredEvent):
-        self._snap.restart()
+        logger.info("new client registered")
         self.unit.status = ops.ActiveStatus()
 
 

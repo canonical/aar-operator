@@ -5,8 +5,8 @@
 import os
 import shutil
 import logging
+from cryptography.x509.extensions import hashlib
 import ops
-from helpers import pki
 import subprocess
 
 from charm import AARCharm
@@ -43,7 +43,7 @@ class AAREndpointProvider(ops.Object):
 
         unit_data = event.relation.data[self._charm.unit]
         unit_data["certificate"] = cert
-        unit_data["fingerprint"] = pki.get_fingerprint(cert)
+        unit_data["fingerprint"] = hashlib.sha256(cert.encode("utf-8")).hexdigest()
         unit_data["ip"] = listen_address
         unit_data["port"] = str(self._charm.config['port'])
 
