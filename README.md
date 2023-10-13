@@ -92,14 +92,6 @@ certificate: "-----BEGIN CERTIFICATE-----\n
 mode: "publisher"
 ```
 
-### `nrpe-external-master` interface:
-
-```yaml
-nrpe-external-master:
-    interface: nrpe-external-master
-    scope: container
-```
-
 ## Security
 Security issues in the operator can be reported through [LaunchPad](https://wiki.ubuntu.com/DebuggingSecurity#How%20to%20File) on the [Anbox Cloud](https://bugs.launchpad.net/anbox-cloud) project. Please do not file GitHub issues about security issues.
 

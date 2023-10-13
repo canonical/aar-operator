@@ -1,8 +1,0 @@
-Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: aar-charm
-Upstream-Contact: indore@lists.canonical.com
-Source: https://code.launchpad.net/~indore-team/indore/+git/deployment-scripts
-
-Files: *
-Copyright: 2018 Canonical Ltd
-License: Proprietary

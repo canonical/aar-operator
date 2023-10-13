@@ -1,5 +1,4 @@
 #
-# Anbox - The Android in a Box runtime environment
 # Copyright 2023 Canonical Ltd.  All rights reserved.
 #
 

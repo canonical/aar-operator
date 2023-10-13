@@ -1,12 +1,17 @@
 name: aar
 display-name: Anbox Application Registry
-summary: Anbox Application Registry
+summary: |
+  The Anbox Application Registry (AAR) is a central repository for applications
+  created on Anbox Cloud.
 website: https://anbox-cloud.io
 issues: https://bugs.launchpad.net/anbox-cloud
 maintainers:
 - Anbox Cloud Team <indore@lists.canonical.com>
 description: |
-  A central place to publish and retrieve applications from.
+  For larger deployments involving multiple regions, AAR helps to keep the
+  applications in sync. Once deployed and configured, AAR can be connected to
+  multiple Anbox Management Service (AMS) units to synchronise the applications.
+  See https://anbox-cloud.io/docs/exp/aar for understanding more about AAR.
 tags:
   - registry
 subordinate: false

@@ -1,11 +1,10 @@
 #
-# Anbox - The Android in a Box runtime environment
 # Copyright 2023 Canonical Ltd.  All rights reserved.
 #
 
-from snap import AARSnap
+from snap import AAR
 
-SNAP_BASE_PATH = AARSnap.get_path()
+SNAP_BASE_PATH = AAR.get_path()
 AAR_CONFIG_PATH = SNAP_BASE_PATH  / "conf/main.yaml"
 
 AAR_CERT_BASE_PATH =  SNAP_BASE_PATH / "certs"
