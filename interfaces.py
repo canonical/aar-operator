@@ -2,14 +2,14 @@
 # Copyright 2023 Canonical Ltd.  All rights reserved.
 #
 
+import json
 import os
+import ops
+import subprocess
 import shutil
 import logging
 from cryptography.x509.extensions import hashlib
-import ops
-import subprocess
 
-from charm import AARCharm
 from constants import AAR_SERVER_CERT_PATH, CLIENTS_CERT_PATH, PUBLISHERS_CERT_PATH
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class AAREndpointProviderEvents(ops.CharmEvents):
 class AAREndpointProvider(ops.Object):
     on: ops.CharmEvents = AAREndpointProviderEvents()
 
-    def  __init__(self, charm: AARCharm, relation_name: str):
+    def  __init__(self, charm: "AARCharm", relation_name: str):
         self._charm = charm
         events = self._charm.on[relation_name]
         self.framework.observe(events.relation_changed, self._on_aar_changed)
@@ -95,15 +95,25 @@ class AAREndpointProvider(ops.Object):
 
     def _register_aar_client(self, client_certificate: str, mode: str):
         client_certificate = client_certificate.replace("\\n", "\n").strip('"')
+        fp = hashlib.sha256(client_certificate.encode("utf-8")).hexdigest()
+        output = subprocess.run(['/snap/bin/aar', 'trust', 'list',
+                               '--format=json'], stderr=subprocess.STDOUT,
+                              encoding='utf-8', errors='ignore').stdout
+        data = json.loads(output)
+        for d in data:
+            # if the fingerprint to be added has existed in aar but associated
+            # a different role, refresh the certificate with a requested role,
+            # otherwise do not attempt to add same certificate to aar.
+            if fp.startswith(d["Fingerprint"]):
+                if d["Role"] != mode:
+                    subprocess.run(['/snap/bin/aar', 'trust', 'remove',
+                                d["Fingerprint"]], check=True)
+                    break
+                else:
+                    logger.info('Client already exists with same mode, skipping client registration')
+                    return
+
         cmd = ["/snap/bin/aar", "trust", "add"]
         if mode == "publisher":
             cmd.append("--publisher")
-        try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT, input=client_certificate.encode("utf-8"))
-            logger.info("new client registered")
-        except subprocess.CalledProcessError as ex:
-            if 'certificate already exists' in ex.output:
-                logger.warning("client already registered")
-                return
-            raise
-
+            subprocess.run(cmd, stderr=subprocess.STDOUT, check=True, input=client_certificate.encode("utf-8"))

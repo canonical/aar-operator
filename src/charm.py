@@ -69,7 +69,6 @@ class AARCharm(ops.CharmBase):
         self._snap.remove()
 
     def _on_aar_client_registered(self, _: ClientRegisteredEvent):
-        logger.info("new client registered")
         self.unit.status = ops.ActiveStatus()
 
 
