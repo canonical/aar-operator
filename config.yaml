@@ -14,4 +14,6 @@ options:
   location:
     type: string
     default: ""
-    description: Location the registry is available on. If not set its public address will be used.
+    description: |
+      IP address of the machine hosting the AAR. If not set,
+      the public IP address of the host will be used.
