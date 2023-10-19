@@ -77,6 +77,10 @@ class AAREndpointProvider(ops.Object):
                 logger.error(f"failed to add client to aar: {ex.output}")
                 self._charm.unit.status = ops.BlockedStatus('Failed to register client certificate')
                 return
+            except UnicodeError as ex:
+                logger.error(f"failed to add client to aar: {ex}")
+                self._charm.unit.status = ops.BlockedStatus('Failed to register client certificate: invalid certificate')
+                return
         self.on.client_registered.emit()
 
     def _remove_all_certificates(self):
