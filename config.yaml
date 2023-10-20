@@ -1,0 +1,19 @@
+options:
+  port:
+    type: int
+    default: 3000
+    description: Port the Anbox Application Registry listens on
+  storage_config:
+    type: string
+    default: ""
+    description: Storage configuration for the Anbox Application Registry
+  public_interface:
+    type: string
+    default: ""
+    description: Identifies which network interface to use for the public address
+  location:
+    type: string
+    default: ""
+    description: |
+      IP address of the machine hosting the AAR. If not set,
+      the public IP address of the host will be used.

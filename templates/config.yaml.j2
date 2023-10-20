@@ -1,0 +1,9 @@
+http:
+  addr: {{ listen_address }}
+{% if storage_config|length > 0 -%}
+{{ storage_config }}
+{% else %}
+storage:
+  fs:
+    root-directory: /var/snap/aar/common/data
+{%- endif %}
